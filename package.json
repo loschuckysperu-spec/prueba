@@ -1,8 +1,8 @@
 {
-  "name": "panel-completo",
+  "name": "api-datos-full-crud",
   "version": "1.0.0",
-  "description": "Frontend y Backend integrados para Vercel",
-  "main": "api/server.js",
+  "description": "API completa JSON /datos con panel HTML interactivo",
+  "main": "api/datos.js",
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.19.2",
