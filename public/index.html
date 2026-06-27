@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administrador de Enlaces</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; }
+        .container { max-width: 700px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); margin: 0 auto; }
+        h2 { color: #333; }
+        .form-group { margin-bottom: 15px; display: flex; flex-direction: column; }
+        label { margin-bottom: 5px; font-weight: bold; }
+        input { padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+        button { padding: 10px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn-submit { background-color: #28a745; color: white; width: 100%; font-size: 16px; }
+        .btn-edit { background-color: #ffc107; color: black; margin-right: 5px; }
+        .btn-delete { background-color: #dc3545; color: white; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #007bff; color: white; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2 id="form-title">Agregar Nuevo Enlace</h2>
+    
+    <form id="link-form">
+        <input type="hidden" id="link-id">
+        <div class="form-group">
+            <label for="nombre">Nombre:</label>
+            <input type="text" id="nombre" placeholder="Ej. Mi canal de YouTube" required>
+        </div>
+        <div class="form-group">
+            <label for="url">Enlace (URL):</label>
+            <input type="text" id="url" placeholder="Ej. lguss.com o https://ejemplo.com" required>
+        </div>
+        <div class="form-group">
+            <label for="orden">Orden de prioridad (Número):</label>
+            <input type="number" id="orden" placeholder="Ej. 1 (Aparece primero)" required>
+        </div>
+        <button type="submit" class="btn-submit" id="btn-save">Guardar Enlace</button>
+    </form>
+
+    <h2>Mis Enlaces Guardados</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Orden</th>
+                <th>Nombre</th>
+                <th>Enlace</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody id="links-table-body">
+            <!-- Los enlaces se cargarán aquí automáticamente -->
+        </tbody>
+    </table>
+</div>
+
+<script>
+    const form = document.getElementById('link-form');
+    const tableBody = document.getElementById('links-table-body');
+    
+    const API_URL = '/api/enlaces';
+
+    async function cargarEnlaces() {
+        try {
+            const res = await fetch(API_URL);
+            const enlaces = await res.json();
+            tableBody.innerHTML = '';
+            
+            enlaces.forEach(enlace => {
+                const linkCompleto = enlace.url.startsWith('http://') || enlace.url.startsWith('https://') 
+                    ? enlace.url 
+                    : `https://${enlace.url}`;
+
+                tableBody.innerHTML += `
+                    <tr>
+                        <td><strong>${enlace.orden}</strong></td>
+                        <td>${enlace.nombre}</td>
+                        <td><a href="${linkCompleto}" target="_blank">${enlace.url}</a></td>
+                        <td>
+                            <button class="btn-edit" onclick="prepararEdicion('${enlace._id}', '${enlace.nombre}', '${enlace.url}', ${enlace.orden})">✏️ Editar</button>
+                            <button class="btn-delete" onclick="eliminarEnlace('${enlace._id}')">🗑️ Borrar</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        } catch (err) {
+            console.error('Error al cargar enlaces:', err);
+        }
+    }
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('link-id').value;
+        const nombre = document.getElementById('nombre').value;
+        const url = document.getElementById('url').value;
+        const orden = document.getElementById('orden').value;
+
+        const datos = { nombre, url, orden: parseInt(orden) };
+
+        try {
+            if (id) {
+                await fetch(`${API_URL}/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(datos)
+                });
+            } else {
+                await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(datos)
+                });
+            }
+
+            form.reset();
+            document.getElementById('link-id').value = '';
+            document.getElementById('form-title').innerText = "Agregar Nuevo Enlace";
+            document.getElementById('btn-save').innerText = "Guardar Enlace";
+            cargarEnlaces();
+        } catch (err) {
+            console.error('Error al guardar:', err);
+        }
+    });
+
+    function prepararEdicion(id, nombre, url, orden) {
+        document.getElementById('link-id').value = id;
+        document.getElementById('nombre').value = nombre;
+        document.getElementById('url').value = url;
+        document.getElementById('orden').value = orden;
+        
+        document.getElementById('form-title').innerText = "Modificar Enlace";
+        document.getElementById('btn-save').innerText = "Actualizar Cambios";
+    }
+
+    async function eliminarEnlace(id) {
+        if (confirm('¿Seguro que quieres eliminar este enlace?')) {
+            try {
+                await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+                cargarEnlaces();
+            } catch (err) {
+                console.error('Error al eliminar:', err);
+            }
+        }
+    }
+
+    cargarEnlaces();
+</script>
+</body>
+</html>
