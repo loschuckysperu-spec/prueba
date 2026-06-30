@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Panel de Administración · Enlaces</title>
+<title>Panel de Enlaces</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
@@ -214,6 +214,7 @@
   }
 
   #orden{font-family:var(--mono);}
+
 
   .form-actions{display:flex; gap:8px; margin-top:8px;}
 
@@ -474,7 +475,7 @@
       <div class="form-group">
         <label for="orden">Orden de prioridad</label>
         <div class="input-wrap">
-          <input type="number" id="orden" placeholder="1 = aparece primero" required>
+          <input type="number" id="orden" min="0" max="999999" step="1" placeholder="1 = aparece primero" required>
         </div>
       </div>
 
@@ -533,8 +534,19 @@
   function showToast(message, type = 'ok') {
     const el = document.createElement('div');
     el.className = `toast ${type}`;
-    el.innerHTML = `<span class="toast-dot"></span><span>${message}</span><span class="toast-bar"></span>`;
+
+    const dot = document.createElement('span');
+    dot.className = 'toast-dot';
+
+    const text = document.createElement('span');
+    text.textContent = String(message);
+
+    const bar = document.createElement('span');
+    bar.className = 'toast-bar';
+
+    el.append(dot, text, bar);
     toastStack.appendChild(el);
+
     const remove = () => {
       el.classList.add('leaving');
       setTimeout(() => el.remove(), 260);
@@ -548,30 +560,25 @@
   }
 
   function animateCount(target) {
-    const start = parseInt(countNumber.textContent) || 0;
+    const start = parseInt(countNumber.textContent, 10) || 0;
     if (start === target) return;
+
     const duration = 350;
     const startTime = performance.now();
-    function tick(now) {
-      const p = Math.min(1, (now - startTime) / duration);
-      const eased = 1 - Math.pow(1 - p, 3);
-      countNumber.textContent = Math.round(start + (target - start) * eased);
-      if (p < 1) requestAnimationFrame(tick);
-    }
-    requestAnimationFrame(tick);
-  }
 
-  function escapeHtml(str) {
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+    function tick(now) {
+      const progress = Math.min(1, (now - startTime) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      countNumber.textContent = Math.round(start + (target - start) * eased);
+      if (progress < 1) requestAnimationFrame(tick);
+    }
+
+    requestAnimationFrame(tick);
   }
 
   function renderSkeleton(rows = 3) {
     tableBody.innerHTML = '';
-    for (let i = 0; i < rows; i++) {
+    for (let i = 0; i < rows; i += 1) {
       const tr = document.createElement('tr');
       tr.className = 'skel-row';
       tr.innerHTML = `
@@ -584,107 +591,184 @@
     }
   }
 
-  // 1. OBTENER Y LEER LOS DATOS (GET)
+  function safeHttpUrl(rawValue) {
+    const value = typeof rawValue === 'string' ? rawValue.trim() : '';
+    if (!value) return null;
+
+    try {
+      const parsed = new URL(/^https?:\/\//i.test(value) ? value : `https://${value}`);
+      return ['http:', 'https:'].includes(parsed.protocol) ? parsed.href : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function apiRequest(url, options = {}) {
+    const response = await fetch(url, options);
+    const contentType = response.headers.get('content-type') || '';
+    let body = null;
+
+    if (contentType.includes('application/json')) {
+      body = await response.json().catch(() => null);
+    } else {
+      const text = await response.text().catch(() => '');
+      body = text ? { error: text } : null;
+    }
+
+    if (!response.ok) {
+      throw new Error(body?.error || `Error HTTP ${response.status}`);
+    }
+
+    return body;
+  }
+
+  function renderEmptyState(message, isError = false) {
+    tableBody.innerHTML = '';
+    const row = document.createElement('tr');
+    row.className = `state-row${isError ? ' error' : ''}`;
+
+    const cell = document.createElement('td');
+    cell.colSpan = 4;
+    cell.textContent = message;
+
+    row.appendChild(cell);
+    tableBody.appendChild(row);
+  }
+
+  function renderLinkRow(enlace, index) {
+    const row = document.createElement('tr');
+    row.style.animationDelay = `${Math.min(index, 8) * 40}ms`;
+
+    const orderCell = document.createElement('td');
+    const orderBadge = document.createElement('span');
+    orderBadge.className = 'order-jack';
+    orderBadge.textContent = Number.isFinite(Number(enlace.orden)) ? String(enlace.orden) : '—';
+    orderCell.appendChild(orderBadge);
+
+    const nameCell = document.createElement('td');
+    const name = document.createElement('span');
+    name.className = 'res-name';
+    name.textContent = typeof enlace.nombre === 'string' && enlace.nombre.trim()
+      ? enlace.nombre
+      : 'Sin nombre';
+    nameCell.appendChild(name);
+
+    const linkCell = document.createElement('td');
+    const validUrl = safeHttpUrl(enlace.url);
+    if (validUrl) {
+      const anchor = document.createElement('a');
+      anchor.className = 'res-link';
+      anchor.href = validUrl;
+      anchor.target = '_blank';
+      anchor.rel = 'noopener noreferrer';
+      anchor.textContent = enlace.url;
+      linkCell.appendChild(anchor);
+    } else {
+      const invalid = document.createElement('span');
+      invalid.className = 'res-link';
+      invalid.textContent = 'URL no válida';
+      invalid.title = 'Este registro antiguo no contiene una URL HTTP/HTTPS válida.';
+      linkCell.appendChild(invalid);
+    }
+
+    const actionsCell = document.createElement('td');
+    actionsCell.className = 'actions-cell';
+
+    const editButton = document.createElement('button');
+    editButton.type = 'button';
+    editButton.className = 'icon-btn edit';
+    editButton.title = 'Editar';
+    editButton.setAttribute('aria-label', `Editar ${name.textContent}`);
+    editButton.textContent = '✏️';
+    editButton.addEventListener('click', () => {
+      prepararEdicion(enlace._id, enlace.nombre, enlace.url, enlace.orden);
+    });
+
+    const deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.className = 'icon-btn danger';
+    deleteButton.title = 'Borrar';
+    deleteButton.setAttribute('aria-label', `Borrar ${name.textContent}`);
+    deleteButton.textContent = '🗑️';
+    deleteButton.addEventListener('click', () => {
+      pedirConfirmacionBorrado(enlace._id, name.textContent);
+    });
+
+    actionsCell.append(editButton, deleteButton);
+    row.append(orderCell, nameCell, linkCell, actionsCell);
+    tableBody.appendChild(row);
+  }
+
   async function cargarEnlaces() {
     renderSkeleton();
+
     try {
-      const res = await fetch(API_URL);
-      if (!res.ok) throw new Error('Respuesta no válida de la API');
-      const enlaces = await res.json();
+      const enlaces = await apiRequest(API_URL);
+      if (!Array.isArray(enlaces)) throw new Error('La API devolvió un formato inesperado.');
+
       setStatus(true, 'conectado');
       animateCount(enlaces.length);
-
       tableBody.innerHTML = '';
 
       if (enlaces.length === 0) {
-        tableBody.innerHTML = `<tr class="state-row"><td colspan="4"><span class="empty-icon">🔗</span>Aún no hay enlaces. Agrega el primero desde el formulario.</td></tr>`;
+        renderEmptyState('Aún no hay enlaces. Agrega el primero desde el formulario.');
         return;
       }
 
       enlaces
         .slice()
-        .sort((a, b) => a.orden - b.orden)
-        .forEach((enlace, i) => {
-          const linkCompleto = enlace.url.startsWith('http://') || enlace.url.startsWith('https://')
-            ? enlace.url
-            : `https://${enlace.url}`;
-
-          const row = document.createElement('tr');
-          row.style.animationDelay = `${Math.min(i, 8) * 40}ms`;
-          row.innerHTML = `
-            <td><span class="order-jack">${escapeHtml(enlace.orden)}</span></td>
-            <td><span class="res-name">${escapeHtml(enlace.nombre)}</span></td>
-            <td><a class="res-link" href="${linkCompleto}" target="_blank" rel="noopener">${escapeHtml(enlace.url)}
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17 17 7M9 7h8v8"/></svg>
-            </a></td>
-            <td class="actions-cell">
-              <button class="icon-btn edit" title="Editar">✏️</button>
-              <button class="icon-btn danger" title="Borrar">🗑️</button>
-            </td>
-          `;
-          row.querySelector('.edit').addEventListener('click', () =>
-            prepararEdicion(enlace._id, enlace.nombre, enlace.url, enlace.orden)
-          );
-          row.querySelector('.danger').addEventListener('click', () =>
-            pedirConfirmacionBorrado(enlace._id, enlace.nombre)
-          );
-          tableBody.appendChild(row);
-        });
-    } catch (err) {
-      console.error('Error al cargar enlaces:', err);
+        .sort((a, b) => (Number(a.orden) || 0) - (Number(b.orden) || 0))
+        .forEach(renderLinkRow);
+    } catch (error) {
+      console.error('Error al cargar enlaces:', error);
       setStatus(false, 'sin conexión');
       animateCount(0);
-      tableBody.innerHTML = `<tr class="state-row error"><td colspan="4">No se pudo conectar con /datos. Revisa la API e inténtalo de nuevo.</td></tr>`;
+      renderEmptyState(error.message || 'No se pudo conectar con /datos.', true);
     }
   }
 
-  // 2. CREAR (POST) O ACTUALIZAR (PUT)
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const id = document.getElementById('link-id').value;
-    const nombre = document.getElementById('nombre').value;
-    const url = document.getElementById('url').value;
-    const orden = document.getElementById('orden').value;
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
 
-    const datos = { nombre, url, orden: parseInt(orden) };
-    const btn = document.getElementById('btn-save');
-    const originalLabel = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span>Guardando…';
+    const id = document.getElementById('link-id').value;
+    const nombre = document.getElementById('nombre').value.trim();
+    const url = document.getElementById('url').value.trim();
+    const orden = Number(document.getElementById('orden').value);
+    const button = document.getElementById('btn-save');
 
     try {
-      if (id) {
-        await fetch(`${API_URL}/${id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(datos)
-        });
-        showToast('Registro actualizado', 'ok');
-      } else {
-        await fetch(API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(datos)
-        });
-        showToast('Enlace agregado', 'ok');
+      if (!Number.isInteger(orden) || orden < 0) {
+        throw new Error('El orden debe ser un número entero igual o mayor que 0.');
       }
 
+      button.disabled = true;
+      button.innerHTML = '<span class="spinner"></span>Guardando…';
+
+      await apiRequest(id ? `${API_URL}/${encodeURIComponent(id)}` : API_URL, {
+        method: id ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre, url, orden })
+      });
+
+      showToast(id ? 'Registro actualizado' : 'Enlace agregado', 'ok');
       resetForm();
-      cargarEnlaces();
-    } catch (err) {
-      console.error('Error al guardar:', err);
-      showToast('No se pudo guardar el registro', 'err');
+      await cargarEnlaces();
+    } catch (error) {
+      console.error('Error al guardar:', error);
+      showToast(error.message || 'No se pudo guardar el registro', 'err');
     } finally {
-      btn.disabled = false;
-      btn.innerHTML = originalLabel;
+      button.disabled = false;
+      button.textContent = document.getElementById('link-id').value
+        ? 'Actualizar registro'
+        : 'Guardar cambios';
     }
   });
 
   function resetForm() {
     form.reset();
     document.getElementById('link-id').value = '';
-    document.getElementById('form-title').innerText = 'Nuevo enlace';
-    document.getElementById('btn-save').innerText = 'Guardar cambios';
+    document.getElementById('form-title').textContent = 'Nuevo enlace';
+    document.getElementById('btn-save').textContent = 'Guardar cambios';
     document.getElementById('btn-cancel').classList.remove('visible');
     document.getElementById('editing-flag').classList.remove('visible');
     formCard.classList.remove('is-editing');
@@ -692,32 +776,29 @@
 
   document.getElementById('btn-cancel').addEventListener('click', resetForm);
 
-  // Pasar valores de la fila seleccionada al formulario para editar
   function prepararEdicion(id, nombre, url, orden) {
-    document.getElementById('link-id').value = id;
-    document.getElementById('nombre').value = nombre;
-    document.getElementById('url').value = url;
-    document.getElementById('orden').value = orden;
+    document.getElementById('link-id').value = id || '';
+    document.getElementById('nombre').value = typeof nombre === 'string' ? nombre : '';
+    document.getElementById('url').value = typeof url === 'string' ? url : '';
+    document.getElementById('orden').value = Number.isFinite(Number(orden)) ? Number(orden) : 0;
 
-    document.getElementById('form-title').innerText = 'Editar enlace';
-    document.getElementById('btn-save').innerText = 'Actualizar registro';
+    document.getElementById('form-title').textContent = 'Editar enlace';
+    document.getElementById('btn-save').textContent = 'Actualizar registro';
     document.getElementById('btn-cancel').classList.add('visible');
 
     const flag = document.getElementById('editing-flag');
     flag.classList.add('visible');
-    document.getElementById('editing-flag-text').textContent = `Editando: ${nombre}`;
+    document.getElementById('editing-flag-text').textContent = `Editando: ${nombre || 'Sin nombre'}`;
     formCard.classList.add('is-editing');
-
     formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  // 3. ELIMINAR (DELETE), con modal de confirmación propio en vez de confirm()
   const modalOverlay = document.getElementById('modal-overlay');
   const modalText = document.getElementById('modal-text');
 
   function pedirConfirmacionBorrado(id, nombre) {
     pendingDeleteId = id;
-    modalText.textContent = `"${nombre}" se borrará de MongoDB de forma definitiva y no se puede deshacer.`;
+    modalText.textContent = `“${nombre}” se borrará de MongoDB de forma definitiva y no se puede deshacer.`;
     modalOverlay.classList.add('visible');
   }
 
@@ -727,22 +808,29 @@
   }
 
   document.getElementById('modal-cancel').addEventListener('click', cerrarModal);
-  modalOverlay.addEventListener('click', (e) => {
-    if (e.target === modalOverlay) cerrarModal();
+  modalOverlay.addEventListener('click', (event) => {
+    if (event.target === modalOverlay) cerrarModal();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && modalOverlay.classList.contains('visible')) cerrarModal();
   });
 
   document.getElementById('modal-confirm').addEventListener('click', async () => {
     const id = pendingDeleteId;
     if (!id) return;
-    cerrarModal();
 
     try {
-      await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+      cerrarModal();
+
+      await apiRequest(`${API_URL}/${encodeURIComponent(id)}`, {
+        method: 'DELETE'
+      });
+
       showToast('Registro eliminado', 'ok');
-      cargarEnlaces();
-    } catch (err) {
-      console.error('Error al eliminar:', err);
-      showToast('No se pudo eliminar el registro', 'err');
+      await cargarEnlaces();
+    } catch (error) {
+      console.error('Error al eliminar:', error);
+      showToast(error.message || 'No se pudo eliminar el registro', 'err');
     }
   });
 
