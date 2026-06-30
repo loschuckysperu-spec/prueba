@@ -619,19 +619,22 @@
     btn.innerHTML = '<span class="spinner"></span>Guardando…';
 
     try {
+      let res;
       if (id) {
-        await fetch(`${API_URL}/${id}`, {
+        res = await fetch(`${API_URL}/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(datos)
         });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || `El servidor respondió ${res.status}`);
         showToast('Registro actualizado', 'ok');
       } else {
-        await fetch(API_URL, {
+        res = await fetch(API_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(datos)
         });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || `El servidor respondió ${res.status}`);
         showToast('Enlace agregado', 'ok');
       }
 
@@ -639,7 +642,7 @@
       cargarEnlaces();
     } catch (err) {
       console.error('Error al guardar:', err);
-      showToast('No se pudo guardar el registro', 'err');
+      showToast(`No se pudo guardar: ${err.message}`, 'err');
     } finally {
       btn.disabled = false;
       btn.innerHTML = originalLabel;
@@ -703,12 +706,17 @@
     cerrarModal();
 
     try {
-      await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        let detalle = '';
+        try { detalle = (await res.json()).message || ''; } catch (_) {}
+        throw new Error(detalle || `El servidor respondió ${res.status}`);
+      }
       showToast('Registro eliminado', 'ok');
       cargarEnlaces();
     } catch (err) {
       console.error('Error al eliminar:', err);
-      showToast('No se pudo eliminar el registro', 'err');
+      showToast(`No se pudo eliminar: ${err.message}`, 'err');
     }
   });
 
