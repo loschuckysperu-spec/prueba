@@ -1,18 +1,840 @@
-{
-  "name": "api-datos-full-crud",
-  "version": "1.1.0",
-  "private": true,
-  "description": "API CRUD segura con MongoDB y panel HTML para Vercel",
-  "main": "api/datos.js",
-  "engines": {
-    "node": ">=18"
-  },
-  "scripts": {
-    "start": "node api/datos.js",
-    "check": "node --check api/datos.js"
-  },
-  "dependencies": {
-    "express": "^4.19.2",
-    "mongoose": "^8.3.1"
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel de Enlaces</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0d1419;
+    --surface:#16222b;
+    --surface-2:#1d2c36;
+    --surface-3:#243744;
+    --border:#283944;
+    --border-soft:#1f2e38;
+    --text:#eef3f2;
+    --muted:#7f9aa3;
+    --muted-dim:#5a7178;
+    --accent:#f0a623;
+    --accent-2:#ffc169;
+    --accent-soft:rgba(240,166,35,.13);
+    --ok:#52d6a4;
+    --ok-soft:rgba(82,214,164,.13);
+    --danger:#ec6f63;
+    --danger-soft:rgba(236,111,99,.13);
+    --radius:12px;
+    --mono:'JetBrains Mono', monospace;
+    --display:'Space Grotesk', sans-serif;
+    --body:'Inter', sans-serif;
+    --ease:cubic-bezier(.22,1,.36,1);
   }
-}
+
+  *{box-sizing:border-box;}
+  ::selection{background:var(--accent-soft); color:var(--accent-2);}
+
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--body);
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+
+  .bg-grid{
+    position:fixed; inset:0; z-index:-2;
+    background:
+      radial-gradient(circle at 1px 1px, rgba(255,255,255,.04) 1px, transparent 1px) 0 0/24px 24px;
+    mask-image:radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 90%);
+  }
+  .bg-glow{
+    position:fixed; z-index:-1; width:560px; height:560px;
+    top:-220px; left:50%; transform:translateX(-50%);
+    background:radial-gradient(circle, rgba(240,166,35,.10), transparent 65%);
+    filter:blur(10px);
+    animation:drift 14s ease-in-out infinite;
+    pointer-events:none;
+  }
+  @keyframes drift{
+    0%,100%{transform:translateX(-54%) translateY(0);}
+    50%{transform:translateX(-46%) translateY(24px);}
+  }
+
+  a{color:var(--accent);}
+
+  .topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:16px;
+    padding:18px clamp(20px,4vw,48px);
+    border-bottom:1px solid var(--border-soft);
+    background:rgba(13,20,25,.78);
+    backdrop-filter:blur(10px) saturate(140%);
+    position:sticky;
+    top:0;
+    z-index:20;
+    animation:drop-in .5s var(--ease) both;
+  }
+
+  @keyframes drop-in{
+    from{opacity:0; transform:translateY(-10px);}
+    to{opacity:1; transform:translateY(0);}
+  }
+
+  .brand{display:flex; align-items:center; gap:12px;}
+
+  .brand-mark{
+    width:36px;height:36px;border-radius:10px;
+    background:linear-gradient(135deg,var(--accent-2),var(--accent) 60%,#a8650c);
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--display);font-weight:700;color:#1a1206;
+    flex-shrink:0;
+    box-shadow:0 4px 16px rgba(240,166,35,.25);
+    position:relative;
+  }
+  .brand-mark::after{
+    content:'';
+    position:absolute; inset:-1px;
+    border-radius:11px;
+    background:linear-gradient(135deg, rgba(255,255,255,.5), transparent 40%);
+    mix-blend-mode:overlay;
+  }
+
+  .brand h1{font-family:var(--display); font-size:16px; font-weight:600; margin:0; letter-spacing:.2px;}
+  .brand p{margin:1px 0 0; font-size:12px; color:var(--muted);}
+
+  .topbar-right{display:flex; align-items:center; gap:10px;}
+
+  .count-pill{
+    font-family:var(--mono);
+    font-size:11.5px;
+    color:var(--muted);
+    border:1px solid var(--border);
+    background:var(--surface);
+    padding:6px 12px;
+    border-radius:999px;
+    transition:border-color .2s, color .2s;
+  }
+  .count-pill b{color:var(--text); font-weight:600;}
+
+  .status-pill{
+    display:inline-flex; align-items:center; gap:7px;
+    font-family:var(--mono); font-size:11.5px; color:var(--muted);
+    border:1px solid var(--border); background:var(--surface);
+    padding:6px 12px; border-radius:999px;
+    transition:border-color .2s;
+  }
+
+  .status-dot{
+    width:7px;height:7px;border-radius:50%;
+    background:var(--ok);
+    box-shadow:0 0 0 3px var(--ok-soft);
+    animation:pulse 2.4s ease-in-out infinite;
+  }
+  .status-dot.bad{background:var(--danger); box-shadow:0 0 0 3px var(--danger-soft); animation:none;}
+
+  @keyframes pulse{
+    0%,100%{opacity:1;}
+    50%{opacity:.45;}
+  }
+
+  main{
+    max-width:1180px;
+    margin:0 auto;
+    padding:clamp(24px,4vw,44px) clamp(20px,4vw,48px) 90px;
+    display:grid;
+    grid-template-columns:360px 1fr;
+    gap:24px;
+    align-items:flex-start;
+  }
+
+  @media (max-width: 880px){ main{grid-template-columns:1fr;} }
+
+  .card{
+    background:linear-gradient(180deg, var(--surface), var(--surface) 60%, var(--surface-2));
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:24px;
+    box-shadow:0 1px 0 rgba(255,255,255,.02) inset, 0 24px 48px -24px rgba(0,0,0,.5);
+    animation:rise-in .5s var(--ease) both;
+  }
+  .card:nth-of-type(2){animation-delay:.08s;}
+
+  @keyframes rise-in{
+    from{opacity:0; transform:translateY(14px);}
+    to{opacity:1; transform:translateY(0);}
+  }
+
+  .card-form{position:sticky; top:88px; transition:box-shadow .25s, border-color .25s;}
+  @media (max-width: 880px){ .card-form{position:static;} }
+  .card-form.is-editing{border-color:rgba(240,166,35,.35); box-shadow:0 0 0 1px rgba(240,166,35,.12), 0 24px 48px -24px rgba(0,0,0,.5);}
+
+  .section-eyebrow{
+    font-family:var(--mono); font-size:11px; letter-spacing:.07em;
+    color:var(--accent); text-transform:uppercase; margin:0 0 6px;
+    display:flex; align-items:center; gap:6px;
+  }
+  .section-eyebrow::before{
+    content:''; width:6px; height:6px; border-radius:1px;
+    background:var(--accent); display:inline-block;
+    transform:rotate(45deg);
+  }
+
+  .section-title{font-family:var(--display); font-size:18.5px; font-weight:600; margin:0 0 18px;}
+
+  .form-group{margin-bottom:16px; display:flex; flex-direction:column;}
+
+  label{font-size:12.5px; font-weight:600; color:var(--muted); margin-bottom:6px; transition:color .15s;}
+
+  .input-wrap{position:relative;}
+
+  input{
+    width:100%;
+    padding:11px 12px;
+    border:1px solid var(--border);
+    border-radius:8px;
+    background:var(--surface-2);
+    color:var(--text);
+    font-size:14px;
+    font-family:var(--body);
+    outline:none;
+    transition:border-color .15s var(--ease), box-shadow .15s var(--ease), background .15s;
+  }
+
+  input::placeholder{color:var(--muted-dim);}
+  input:hover{border-color:#36505c;}
+  input:focus-visible{
+    border-color:var(--accent);
+    box-shadow:0 0 0 3px var(--accent-soft);
+    background:var(--surface-3);
+  }
+
+  #orden{font-family:var(--mono);}
+
+
+  .form-actions{display:flex; gap:8px; margin-top:8px;}
+
+  button{
+    border:none; border-radius:9px; cursor:pointer;
+    font-family:var(--body); font-weight:600; font-size:14px;
+    transition:transform .12s var(--ease), filter .15s, background .15s, border-color .15s, color .15s;
+  }
+  button:active{transform:scale(.96);}
+  button:focus-visible{box-shadow:0 0 0 3px var(--accent-soft);}
+
+  .btn-submit{
+    flex:1;
+    background:linear-gradient(180deg, var(--accent-2), var(--accent));
+    color:#1a1206;
+    padding:12px;
+    font-size:14.5px;
+    box-shadow:0 6px 16px -6px rgba(240,166,35,.5);
+  }
+  .btn-submit:hover{filter:brightness(1.06); box-shadow:0 8px 20px -6px rgba(240,166,35,.6);}
+  .btn-submit:disabled{opacity:.65; cursor:wait; filter:none; box-shadow:none;}
+
+  .btn-submit .spinner{
+    display:inline-block; width:13px; height:13px;
+    border:2px solid rgba(26,18,6,.35); border-top-color:#1a1206;
+    border-radius:50%; margin-right:7px; vertical-align:-2px;
+    animation:spin .6s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .btn-cancel{
+    background:transparent; border:1px solid var(--border); color:var(--muted);
+    padding:12px 16px; max-width:0; opacity:0; overflow:hidden;
+    transition:max-width .25s var(--ease), opacity .2s, padding .25s, border-color .15s, color .15s;
+  }
+  .btn-cancel.visible{max-width:120px; opacity:1; padding:12px 16px;}
+  .btn-cancel:hover{color:var(--text); border-color:#46606c; background:var(--surface-3);}
+
+  .editing-flag{
+    display:flex; align-items:center; gap:8px;
+    font-family:var(--mono); font-size:11.5px; color:var(--accent);
+    background:var(--accent-soft); border:1px solid rgba(240,166,35,.3);
+    border-radius:8px; padding:0 10px; margin-bottom:0;
+    max-height:0; opacity:0; overflow:hidden;
+    transition:max-height .25s var(--ease), opacity .2s, margin-bottom .25s, padding .25s;
+  }
+  .editing-flag.visible{max-height:40px; opacity:1; padding:8px 10px; margin-bottom:16px;}
+  .editing-flag span:first-child{flex-shrink:0;}
+  #editing-flag-text{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+
+  table{width:100%; border-collapse:collapse;}
+
+  thead th{
+    text-align:left; font-family:var(--mono); font-size:11px; letter-spacing:.07em;
+    text-transform:uppercase; color:var(--muted); font-weight:500;
+    padding:0 12px 12px; border-bottom:1px solid var(--border);
+  }
+
+  tbody tr{animation:row-in .35s var(--ease) both;}
+  @keyframes row-in{
+    from{opacity:0; transform:translateY(6px);}
+    to{opacity:1; transform:translateY(0);}
+  }
+
+  tbody td{
+    padding:14px 12px;
+    border-bottom:1px solid var(--border-soft);
+    font-size:14px;
+    vertical-align:middle;
+  }
+
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr{transition:background .15s;}
+  tbody tr:hover{background:rgba(255,255,255,.025);}
+
+  .order-jack{
+    width:30px;height:30px; border-radius:50%;
+    border:1.5px solid var(--border);
+    background:var(--surface-2);
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--mono); font-size:12px; font-weight:600; color:var(--accent);
+    flex-shrink:0;
+    transition:transform .2s var(--ease), border-color .2s, background .2s;
+  }
+  tr:hover .order-jack{transform:rotate(8deg) scale(1.06); border-color:rgba(240,166,35,.4); background:var(--accent-soft);}
+
+  .res-name{font-weight:600; font-size:14px;}
+
+  .res-link{
+    font-family:var(--mono); font-size:12.5px; color:var(--muted);
+    text-decoration:none; word-break:break-all;
+    display:inline-flex; align-items:center; gap:5px;
+    transition:color .15s, gap .15s;
+  }
+  .res-link:hover{color:var(--accent); gap:8px;}
+  .res-link svg{flex-shrink:0; opacity:.7; transition:transform .15s, opacity .15s;}
+  .res-link:hover svg{opacity:1; transform:translate(1px,-1px);}
+
+  .actions-cell{display:flex; gap:6px; white-space:nowrap;}
+
+  .icon-btn{
+    width:32px;height:32px; border-radius:8px;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--surface-2); border:1px solid var(--border); color:var(--muted);
+    font-size:14px;
+  }
+  .icon-btn:hover{color:var(--text); border-color:#46606c; transform:translateY(-1px);}
+  .icon-btn.danger:hover{color:var(--danger); border-color:rgba(236,111,99,.4); background:var(--danger-soft);}
+  .icon-btn.edit:hover{color:var(--accent); border-color:rgba(240,166,35,.4); background:var(--accent-soft);}
+
+  .state-row td{text-align:center; padding:44px 12px; color:var(--muted); font-size:13.5px;}
+  .state-row.error td{color:var(--danger);}
+  .state-row .empty-icon{font-size:22px; display:block; margin-bottom:8px; opacity:.6;}
+
+  .skel-row td{padding:14px 12px; border-bottom:1px solid var(--border-soft);}
+  .skel{
+    height:14px; border-radius:5px;
+    background:linear-gradient(90deg, var(--surface-2) 0%, var(--surface-3) 50%, var(--surface-2) 100%);
+    background-size:200% 100%;
+    animation:shimmer 1.4s ease-in-out infinite;
+  }
+  @keyframes shimmer{
+    0%{background-position:200% 0;}
+    100%{background-position:-200% 0;}
+  }
+  .skel-jack{width:30px; height:30px; border-radius:50%;}
+  .skel-name{width:120px;}
+  .skel-link{width:160px;}
+  .skel-actions{width:64px;}
+
+  .toast-stack{
+    position:fixed; bottom:20px; right:20px;
+    display:flex; flex-direction:column; gap:8px; z-index:50;
+    width:300px;
+  }
+
+  .toast{
+    font-family:var(--body); font-size:13.5px;
+    padding:12px 14px; border-radius:9px;
+    background:var(--surface-3);
+    border:1px solid var(--border);
+    box-shadow:0 12px 28px rgba(0,0,0,.4);
+    display:flex; align-items:center; gap:9px;
+    animation:toast-in .3s var(--ease);
+    position:relative;
+    overflow:hidden;
+  }
+  .toast.leaving{animation:toast-out .25s var(--ease) forwards;}
+  .toast.ok{border-color:rgba(82,214,164,.35);}
+  .toast.err{border-color:rgba(236,111,99,.35);}
+  .toast-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+  .toast.ok .toast-dot{background:var(--ok);}
+  .toast.err .toast-dot{background:var(--danger);}
+  .toast-bar{position:absolute; left:0; bottom:0; height:2px; background:var(--accent); animation:toast-bar 3s linear forwards;}
+  .toast.ok .toast-bar{background:var(--ok);}
+  .toast.err .toast-bar{background:var(--danger);}
+
+  @keyframes toast-in{
+    from{opacity:0; transform:translateX(16px) scale(.97);}
+    to{opacity:1; transform:translateX(0) scale(1);}
+  }
+  @keyframes toast-out{
+    to{opacity:0; transform:translateX(16px) scale(.96);}
+  }
+  @keyframes toast-bar{from{width:100%;} to{width:0%;}}
+
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(8,12,15,.6);
+    backdrop-filter:blur(3px);
+    display:flex; align-items:center; justify-content:center;
+    z-index:60; opacity:0; pointer-events:none;
+    transition:opacity .2s var(--ease);
+  }
+  .modal-overlay.visible{opacity:1; pointer-events:auto;}
+
+  .modal{
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:24px;
+    width:min(360px, 90vw);
+    box-shadow:0 30px 60px -20px rgba(0,0,0,.6);
+    transform:translateY(10px) scale(.97);
+    transition:transform .25s var(--ease);
+  }
+  .modal-overlay.visible .modal{transform:translateY(0) scale(1);}
+
+  .modal-icon{
+    width:38px; height:38px; border-radius:10px;
+    background:var(--danger-soft); color:var(--danger);
+    display:flex; align-items:center; justify-content:center;
+    font-size:17px; margin-bottom:14px;
+  }
+  .modal h3{font-family:var(--display); font-size:16px; margin:0 0 8px;}
+  .modal p{font-size:13.5px; color:var(--muted); margin:0 0 20px; line-height:1.5;}
+  .modal-actions{display:flex; gap:8px; justify-content:flex-end;}
+  .btn-ghost{background:transparent; border:1px solid var(--border); color:var(--muted); padding:10px 16px;}
+  .btn-ghost:hover{color:var(--text); border-color:#46606c;}
+  .btn-danger{background:linear-gradient(180deg,#f0827a,var(--danger)); color:#26100d; padding:10px 16px;}
+  .btn-danger:hover{filter:brightness(1.08);}
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:.001s !important; animation-iteration-count:1 !important; transition-duration:.001s !important;}
+    .bg-glow{animation:none;}
+  }
+</style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+<div class="bg-glow"></div>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-mark">E</div>
+    <div>
+      <h1>Panel de Enlaces</h1>
+      <p>Agregar, editar y ordenar tus recursos</p>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <span class="count-pill" id="count-pill"><b id="count-number">0</b> enlaces</span>
+    <span class="status-pill">
+      <span class="status-dot" id="status-dot"></span>
+      <span id="status-text">conectando…</span>
+    </span>
+  </div>
+</div>
+
+<main>
+  <!-- Formulario -->
+  <section class="card card-form" id="form-card">
+    <p class="section-eyebrow">Editor</p>
+    <h2 class="section-title" id="form-title">Nuevo enlace</h2>
+
+    <div class="editing-flag" id="editing-flag">
+      <span>✏️</span>
+      <span id="editing-flag-text">Editando un registro existente</span>
+    </div>
+
+    <form id="link-form">
+      <input type="hidden" id="link-id">
+
+      <div class="form-group">
+        <label for="nombre">Nombre del sitio o recurso</label>
+        <div class="input-wrap">
+          <input type="text" id="nombre" placeholder="Ej. Mi canal de Twitch" required>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="url">Enlace (URL)</label>
+        <div class="input-wrap">
+          <input type="text" id="url" placeholder="Ej. twitch.tv/usuario" required>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="orden">Orden de prioridad</label>
+        <div class="input-wrap">
+          <input type="number" id="orden" min="0" max="999999" step="1" placeholder="1 = aparece primero" required>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn-submit" id="btn-save">Guardar cambios</button>
+        <button type="button" class="btn-cancel" id="btn-cancel">Cancelar</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- Tabla -->
+  <section class="card">
+    <p class="section-eyebrow">Inventario</p>
+    <h2 class="section-title">Enlaces registrados</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Orden</th>
+          <th>Nombre</th>
+          <th>Enlace</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="links-table-body"></tbody>
+    </table>
+  </section>
+</main>
+
+<div class="toast-stack" id="toast-stack"></div>
+
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <div class="modal-icon">🗑️</div>
+    <h3>Eliminar este enlace</h3>
+    <p id="modal-text">Esta acción borra el registro de MongoDB de forma definitiva y no se puede deshacer.</p>
+    <div class="modal-actions">
+      <button class="btn-ghost" id="modal-cancel">Cancelar</button>
+      <button class="btn-danger" id="modal-confirm">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const form = document.getElementById('link-form');
+  const tableBody = document.getElementById('links-table-body');
+  const statusDot = document.getElementById('status-dot');
+  const statusText = document.getElementById('status-text');
+  const toastStack = document.getElementById('toast-stack');
+  const countNumber = document.getElementById('count-number');
+  const formCard = document.getElementById('form-card');
+  const API_URL = '/datos';
+
+  let pendingDeleteId = null;
+
+  function showToast(message, type = 'ok') {
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+
+    const dot = document.createElement('span');
+    dot.className = 'toast-dot';
+
+    const text = document.createElement('span');
+    text.textContent = String(message);
+
+    const bar = document.createElement('span');
+    bar.className = 'toast-bar';
+
+    el.append(dot, text, bar);
+    toastStack.appendChild(el);
+
+    const remove = () => {
+      el.classList.add('leaving');
+      setTimeout(() => el.remove(), 260);
+    };
+    setTimeout(remove, 3000);
+  }
+
+  function setStatus(ok, label) {
+    statusDot.classList.toggle('bad', !ok);
+    statusText.textContent = label;
+  }
+
+  function animateCount(target) {
+    const start = parseInt(countNumber.textContent, 10) || 0;
+    if (start === target) return;
+
+    const duration = 350;
+    const startTime = performance.now();
+
+    function tick(now) {
+      const progress = Math.min(1, (now - startTime) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      countNumber.textContent = Math.round(start + (target - start) * eased);
+      if (progress < 1) requestAnimationFrame(tick);
+    }
+
+    requestAnimationFrame(tick);
+  }
+
+  function renderSkeleton(rows = 3) {
+    tableBody.innerHTML = '';
+    for (let i = 0; i < rows; i += 1) {
+      const tr = document.createElement('tr');
+      tr.className = 'skel-row';
+      tr.innerHTML = `
+        <td><div class="skel skel-jack"></div></td>
+        <td><div class="skel skel-name"></div></td>
+        <td><div class="skel skel-link"></div></td>
+        <td><div class="skel skel-actions"></div></td>
+      `;
+      tableBody.appendChild(tr);
+    }
+  }
+
+  function safeHttpUrl(rawValue) {
+    const value = typeof rawValue === 'string' ? rawValue.trim() : '';
+    if (!value) return null;
+
+    try {
+      const parsed = new URL(/^https?:\/\//i.test(value) ? value : `https://${value}`);
+      return ['http:', 'https:'].includes(parsed.protocol) ? parsed.href : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function apiRequest(url, options = {}) {
+    const response = await fetch(url, options);
+    const contentType = response.headers.get('content-type') || '';
+    let body = null;
+
+    if (contentType.includes('application/json')) {
+      body = await response.json().catch(() => null);
+    } else {
+      const text = await response.text().catch(() => '');
+      body = text ? { error: text } : null;
+    }
+
+    if (!response.ok) {
+      throw new Error(body?.error || `Error HTTP ${response.status}`);
+    }
+
+    return body;
+  }
+
+  function renderEmptyState(message, isError = false) {
+    tableBody.innerHTML = '';
+    const row = document.createElement('tr');
+    row.className = `state-row${isError ? ' error' : ''}`;
+
+    const cell = document.createElement('td');
+    cell.colSpan = 4;
+    cell.textContent = message;
+
+    row.appendChild(cell);
+    tableBody.appendChild(row);
+  }
+
+  function renderLinkRow(enlace, index) {
+    const row = document.createElement('tr');
+    row.style.animationDelay = `${Math.min(index, 8) * 40}ms`;
+
+    const orderCell = document.createElement('td');
+    const orderBadge = document.createElement('span');
+    orderBadge.className = 'order-jack';
+    orderBadge.textContent = Number.isFinite(Number(enlace.orden)) ? String(enlace.orden) : '—';
+    orderCell.appendChild(orderBadge);
+
+    const nameCell = document.createElement('td');
+    const name = document.createElement('span');
+    name.className = 'res-name';
+    name.textContent = typeof enlace.nombre === 'string' && enlace.nombre.trim()
+      ? enlace.nombre
+      : 'Sin nombre';
+    nameCell.appendChild(name);
+
+    const linkCell = document.createElement('td');
+    const validUrl = safeHttpUrl(enlace.url);
+    if (validUrl) {
+      const anchor = document.createElement('a');
+      anchor.className = 'res-link';
+      anchor.href = validUrl;
+      anchor.target = '_blank';
+      anchor.rel = 'noopener noreferrer';
+      anchor.textContent = enlace.url;
+      linkCell.appendChild(anchor);
+    } else {
+      const invalid = document.createElement('span');
+      invalid.className = 'res-link';
+      invalid.textContent = 'URL no válida';
+      invalid.title = 'Este registro antiguo no contiene una URL HTTP/HTTPS válida.';
+      linkCell.appendChild(invalid);
+    }
+
+    const actionsCell = document.createElement('td');
+    actionsCell.className = 'actions-cell';
+
+    const editButton = document.createElement('button');
+    editButton.type = 'button';
+    editButton.className = 'icon-btn edit';
+    editButton.title = 'Editar';
+    editButton.setAttribute('aria-label', `Editar ${name.textContent}`);
+    editButton.textContent = '✏️';
+    editButton.addEventListener('click', () => {
+      prepararEdicion(enlace._id, enlace.nombre, enlace.url, enlace.orden);
+    });
+
+    const deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.className = 'icon-btn danger';
+    deleteButton.title = 'Borrar';
+    deleteButton.setAttribute('aria-label', `Borrar ${name.textContent}`);
+    deleteButton.textContent = '🗑️';
+    deleteButton.addEventListener('click', () => {
+      pedirConfirmacionBorrado(enlace._id, name.textContent);
+    });
+
+    actionsCell.append(editButton, deleteButton);
+    row.append(orderCell, nameCell, linkCell, actionsCell);
+    tableBody.appendChild(row);
+  }
+
+  async function cargarEnlaces() {
+    renderSkeleton();
+
+    try {
+      const enlaces = await apiRequest(API_URL);
+      if (!Array.isArray(enlaces)) throw new Error('La API devolvió un formato inesperado.');
+
+      setStatus(true, 'conectado');
+      animateCount(enlaces.length);
+      tableBody.innerHTML = '';
+
+      if (enlaces.length === 0) {
+        renderEmptyState('Aún no hay enlaces. Agrega el primero desde el formulario.');
+        return;
+      }
+
+      enlaces
+        .slice()
+        .sort((a, b) => (Number(a.orden) || 0) - (Number(b.orden) || 0))
+        .forEach(renderLinkRow);
+    } catch (error) {
+      console.error('Error al cargar enlaces:', error);
+      setStatus(false, 'sin conexión');
+      animateCount(0);
+      renderEmptyState(error.message || 'No se pudo conectar con /datos.', true);
+    }
+  }
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+
+    const id = document.getElementById('link-id').value;
+    const nombre = document.getElementById('nombre').value.trim();
+    const url = document.getElementById('url').value.trim();
+    const orden = Number(document.getElementById('orden').value);
+    const button = document.getElementById('btn-save');
+
+    try {
+      if (!Number.isInteger(orden) || orden < 0) {
+        throw new Error('El orden debe ser un número entero igual o mayor que 0.');
+      }
+
+      button.disabled = true;
+      button.innerHTML = '<span class="spinner"></span>Guardando…';
+
+      await apiRequest(id ? `${API_URL}/${encodeURIComponent(id)}` : API_URL, {
+        method: id ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre, url, orden })
+      });
+
+      showToast(id ? 'Registro actualizado' : 'Enlace agregado', 'ok');
+      resetForm();
+      await cargarEnlaces();
+    } catch (error) {
+      console.error('Error al guardar:', error);
+      showToast(error.message || 'No se pudo guardar el registro', 'err');
+    } finally {
+      button.disabled = false;
+      button.textContent = document.getElementById('link-id').value
+        ? 'Actualizar registro'
+        : 'Guardar cambios';
+    }
+  });
+
+  function resetForm() {
+    form.reset();
+    document.getElementById('link-id').value = '';
+    document.getElementById('form-title').textContent = 'Nuevo enlace';
+    document.getElementById('btn-save').textContent = 'Guardar cambios';
+    document.getElementById('btn-cancel').classList.remove('visible');
+    document.getElementById('editing-flag').classList.remove('visible');
+    formCard.classList.remove('is-editing');
+  }
+
+  document.getElementById('btn-cancel').addEventListener('click', resetForm);
+
+  function prepararEdicion(id, nombre, url, orden) {
+    document.getElementById('link-id').value = id || '';
+    document.getElementById('nombre').value = typeof nombre === 'string' ? nombre : '';
+    document.getElementById('url').value = typeof url === 'string' ? url : '';
+    document.getElementById('orden').value = Number.isFinite(Number(orden)) ? Number(orden) : 0;
+
+    document.getElementById('form-title').textContent = 'Editar enlace';
+    document.getElementById('btn-save').textContent = 'Actualizar registro';
+    document.getElementById('btn-cancel').classList.add('visible');
+
+    const flag = document.getElementById('editing-flag');
+    flag.classList.add('visible');
+    document.getElementById('editing-flag-text').textContent = `Editando: ${nombre || 'Sin nombre'}`;
+    formCard.classList.add('is-editing');
+    formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  const modalOverlay = document.getElementById('modal-overlay');
+  const modalText = document.getElementById('modal-text');
+
+  function pedirConfirmacionBorrado(id, nombre) {
+    pendingDeleteId = id;
+    modalText.textContent = `“${nombre}” se borrará de MongoDB de forma definitiva y no se puede deshacer.`;
+    modalOverlay.classList.add('visible');
+  }
+
+  function cerrarModal() {
+    modalOverlay.classList.remove('visible');
+    pendingDeleteId = null;
+  }
+
+  document.getElementById('modal-cancel').addEventListener('click', cerrarModal);
+  modalOverlay.addEventListener('click', (event) => {
+    if (event.target === modalOverlay) cerrarModal();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && modalOverlay.classList.contains('visible')) cerrarModal();
+  });
+
+  document.getElementById('modal-confirm').addEventListener('click', async () => {
+    const id = pendingDeleteId;
+    if (!id) return;
+
+    try {
+      cerrarModal();
+
+      await apiRequest(`${API_URL}/${encodeURIComponent(id)}`, {
+        method: 'DELETE'
+      });
+
+      showToast('Registro eliminado', 'ok');
+      await cargarEnlaces();
+    } catch (error) {
+      console.error('Error al eliminar:', error);
+      showToast(error.message || 'No se pudo eliminar el registro', 'err');
+    }
+  });
+
+  cargarEnlaces();
+</script>
+</body>
+</html>
